@@ -18,6 +18,13 @@ MATCH_DURATION_MINUTES = int(os.environ.get("MATCH_DURATION_MINUTES", "135"))  #
 # consecutive API calls while building the EPG.
 API_REQUEST_DELAY_SECONDS = float(os.environ.get("API_REQUEST_DELAY_SECONDS", "1.2"))
 
+# football-data.org - used for Premier League and Championship only
+# (see leagues.py for why). Free tier is 10 requests/minute PER KEY,
+# so set your own key as an env var rather than sharing one.
+FOOTBALL_DATA_API_KEY = os.environ.get("FOOTBALL_DATA_API_KEY", "")
+FOOTBALL_DATA_BASE_URL = "https://api.football-data.org/v4"
+FOOTBALL_DATA_REQUEST_DELAY_SECONDS = float(os.environ.get("FOOTBALL_DATA_REQUEST_DELAY_SECONDS", "6.5"))
+
 # Where generated files live.
 OUTPUT_DIR = os.environ.get("OUTPUT_DIR", os.path.join(os.path.dirname(os.path.abspath(__file__)), "output"))
 TEAMS_SUBDIR = "teams"
