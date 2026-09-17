@@ -22,8 +22,8 @@ import threading
 from apscheduler.schedulers.background import BackgroundScheduler
 from flask import Flask, jsonify, send_from_directory, abort
 
-from config.settings import OUTPUT_DIR, TEAMS_SUBDIR, UPDATE_INTERVAL_HOURS, PORT
-from app.generator import generate_all
+from settings import OUTPUT_DIR, TEAMS_SUBDIR, UPDATE_INTERVAL_HOURS, PORT
+from generator import generate_all
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("server")
