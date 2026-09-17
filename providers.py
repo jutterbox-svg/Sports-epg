@@ -17,7 +17,7 @@ from leagues import LEAGUES
 log = logging.getLogger("providers")
 
 
-def get_teams_for_league(league_name: str) -> list[dict]:
+def fetch_teams(league_name: str) -> list[dict]:
     """
     Fetch all teams for a given league.
     Returns normalized team dicts:
@@ -45,7 +45,7 @@ def get_teams_for_league(league_name: str) -> list[dict]:
         return []
 
 
-def get_events_for_team(team_id: str, league_name: str) -> dict[str, list[dict]]:
+def fetch_events(team_id: str, league_name: str) -> dict[str, list[dict]]:
     """
     Fetch upcoming (next) and past (last) events for a team.
     Returns:
@@ -66,8 +66,6 @@ def get_events_for_team(team_id: str, league_name: str) -> dict[str, list[dict]]
         log.info("Fetching schedule for team %s via ESPN (%s)", team_id, code)
         raw_events = espn_client.get_team_schedule(team_id, code)
 
-        # Separate ESPN events into "next" and "last" based on the internal _status flag
-        # _status from ESPN: "pre" (upcoming), "in" (live), "post" (completed)
         next_events = []
         last_events = []
 
@@ -78,7 +76,6 @@ def get_events_for_team(team_id: str, league_name: str) -> dict[str, list[dict]]
             elif status == "post":
                 last_events.append(evt)
             else:
-                # Default fallback if status isn't clear
                 next_events.append(evt)
 
         return {"next": next_events, "last": last_events}
@@ -92,4 +89,8 @@ def get_events_for_team(team_id: str, league_name: str) -> dict[str, list[dict]]
     else:
         log.error("Unsupported provider '%s' for league %s", provider, league_name)
         return {"next": [], "last": []}
-        
+
+
+# Backward-compatible function aliases
+get_teams_for_league = fetch_teams
+get_events_for_team = fetch_events
