@@ -20,7 +20,7 @@ import re
 from datetime import datetime, timedelta, timezone
 from xml.etree.ElementTree import Element, SubElement
 
-from config.settings import MATCH_DURATION_MINUTES
+from settings import MATCH_DURATION_MINUTES
 
 XMLTV_FMT = "%Y%m%d%H%M%S %z"
 
