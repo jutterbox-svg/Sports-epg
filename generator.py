@@ -27,7 +27,7 @@ from xml.etree.ElementTree import Element, SubElement, tostring
 
 from leagues import LEAGUES, LEAGUE_ORDER
 from settings import OUTPUT_DIR, TEAMS_SUBDIR, XMLTV_SOURCE_INFO_NAME, XMLTV_GENERATOR_NAME
-from sportsdb_client import get_teams_in_league, get_next_events, get_last_events
+from providers import fetch_teams, fetch_fixtures
 from xmltv_builder import TeamChannel
 
 log = logging.getLogger("generator")
@@ -62,9 +62,9 @@ def generate_all() -> dict:
     error_count = 0
 
     for league_display_name in LEAGUE_ORDER:
-        api_league_name = LEAGUES[league_display_name]
-        log.info("Fetching teams for %s (%s)", league_display_name, api_league_name)
-        teams = get_teams_in_league(api_league_name)
+        league_cfg = LEAGUES[league_display_name]
+        log.info("Fetching teams for %s (provider=%s)", league_display_name, league_cfg["provider"])
+        teams = fetch_teams(league_cfg)
         if not teams:
             log.warning("No teams returned for %s - skipping league this run", league_display_name)
             continue
@@ -78,8 +78,7 @@ def generate_all() -> dict:
                 continue
             try:
                 channel = TeamChannel(team, league_display_name)
-                next_events = get_next_events(team_id)
-                last_events = get_last_events(team_id)
+                next_events, last_events = fetch_fixtures(league_cfg, team_id)
                 now = datetime.now(timezone.utc)
                 programmes = channel.build_programmes(next_events, last_events, now)
 
