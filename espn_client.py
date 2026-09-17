@@ -25,7 +25,7 @@ import requests
 
 log = logging.getLogger("espn_client")
 
-BASE_URL = "https://site.api.espn.com/apis/site/v2/sports/soccer"
+BASE_URL = "https://site.web.api.espn.com/apis/site/v2/sports/soccer"
 
 # ESPN's rate limit isn't published, but is widely reported as generous.
 # A small politeness delay is still worthwhile so we don't hammer it.
