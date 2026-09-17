@@ -18,7 +18,7 @@ import time
 
 import requests
 
-from config.settings import SPORTSDB_BASE_URL, API_REQUEST_DELAY_SECONDS
+from settings import SPORTSDB_BASE_URL, API_REQUEST_DELAY_SECONDS
 
 log = logging.getLogger("sportsdb_client")
 
