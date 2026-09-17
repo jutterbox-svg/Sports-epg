@@ -19,7 +19,7 @@ MATCH_DURATION_MINUTES = int(os.environ.get("MATCH_DURATION_MINUTES", "135"))  #
 API_REQUEST_DELAY_SECONDS = float(os.environ.get("API_REQUEST_DELAY_SECONDS", "1.2"))
 
 # Where generated files live.
-OUTPUT_DIR = os.environ.get("OUTPUT_DIR", os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "output"))
+OUTPUT_DIR = os.environ.get("OUTPUT_DIR", os.path.join(os.path.dirname(os.path.abspath(__file__)), "output"))
 TEAMS_SUBDIR = "teams"
 
 # Web server port (Railway sets $PORT automatically).
