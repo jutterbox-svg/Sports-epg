@@ -1,96 +1,71 @@
 """
-Abstracted provider interface.
+Dispatch layer so generator.py can fetch teams/fixtures for any league
+the same way, regardless of which upstream API actually serves it.
 
-Routes team-fetching and event-fetching to either:
-  - espn_client: Free, unauthenticated ESPN site API for eng.1 - eng.4.
-  - sportsdb_client: Free key "123" for National League (eng.5).
+Premier League through League Two go through ESPN's free public API
+(generous rate limit, no key). National League isn't reliably covered
+by ESPN, so it falls back to TheSportsDB.
+
+football_data_client.py is kept in the repo but no longer referenced
+by any league in leagues.py - ESPN covers everything it used to plus
+League One/Two, which football-data.org's free tier never covered.
+Left in place in case you want a provider to fall back to later.
 """
 from __future__ import annotations
 
-import logging
-from typing import Any
+from datetime import datetime, timezone
 
-import espn_client
 import sportsdb_client
-from leagues import LEAGUES
-
-log = logging.getLogger("providers")
+import espn_client
 
 
-def fetch_teams(league_name: str) -> list[dict]:
-    """
-    Fetch all teams for a given league.
-    Returns normalized team dicts:
-      {"idTeam": str, "strTeam": str, "strTeamBadge": str | None}
-    """
-    league_cfg = LEAGUES.get(league_name)
-    if not league_cfg:
-        log.error("Unknown league requested: %s", league_name)
-        return []
-
-    provider = league_cfg.get("provider")
-
-    if provider == "espn":
-        code = league_cfg["league_code"]
-        log.info("Fetching teams for %s via ESPN (%s)", league_name, code)
-        return espn_client.get_teams_in_league(code)
-
-    elif provider == "sportsdb":
-        sdb_name = league_cfg["name"]
-        log.info("Fetching teams for %s via TheSportsDB (%s)", league_name, sdb_name)
-        return sportsdb_client.get_teams_in_league(sdb_name)
-
-    else:
-        log.error("Unsupported provider '%s' for league %s", provider, league_name)
-        return []
+def fetch_teams(league_cfg: dict) -> list[dict]:
+    """Returns normalized team dicts: idTeam, strTeam, strTeamBadge."""
+    if league_cfg["provider"] == "espn":
+        return espn_client.get_teams_in_league(league_cfg["league_code"])
+    return sportsdb_client.get_teams_in_league(league_cfg["name"])
 
 
-def fetch_events(team_id: str, league_name: str) -> dict[str, list[dict]]:
-    """
-    Fetch upcoming (next) and past (last) events for a team.
-    Returns:
-      {
-        "next": [ ... normalized event dicts ... ],
-        "last": [ ... normalized event dicts ... ]
-      }
-    """
-    league_cfg = LEAGUES.get(league_name)
-    if not league_cfg:
-        log.error("Unknown league requested: %s", league_name)
-        return {"next": [], "last": []}
-
-    provider = league_cfg.get("provider")
-
-    if provider == "espn":
-        code = league_cfg["league_code"]
-        log.info("Fetching schedule for team %s via ESPN (%s)", team_id, code)
-        raw_events = espn_client.get_team_schedule(team_id, code)
-
-        next_events = []
-        last_events = []
-
-        for evt in raw_events:
-            status = evt.get("_status")
-            if status in ("pre", "in"):
-                next_events.append(evt)
-            elif status == "post":
-                last_events.append(evt)
-            else:
-                next_events.append(evt)
-
-        return {"next": next_events, "last": last_events}
-
-    elif provider == "sportsdb":
-        log.info("Fetching schedule for team %s via TheSportsDB", team_id)
-        next_evts = sportsdb_client.get_next_events_for_team(team_id)
-        last_evts = sportsdb_client.get_last_events_for_team(team_id)
-        return {"next": next_evts, "last": last_evts}
-
-    else:
-        log.error("Unsupported provider '%s' for league %s", provider, league_name)
-        return {"next": [], "last": []}
+def _parse_dt(event: dict) -> datetime | None:
+    ts = event.get("strTimestamp")
+    if not ts:
+        return None
+    try:
+        dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+        return dt.astimezone(timezone.utc)
+    except ValueError:
+        return None
 
 
-# Backward-compatible function aliases
-get_teams_for_league = fetch_teams
-get_events_for_team = fetch_events
+def _split_by_status(events: list[dict], live_states: tuple, finished_states: tuple):
+    """Shared helper: bucket normalized events (each with a "_status" key)
+    into (next_events, last_events), each 0 or 1 items, using the
+    provider's own status vocabulary passed in by the caller."""
+    now = datetime.now(timezone.utc)
+    upcoming, played = [], []
+    for e in events:
+        dt = _parse_dt(e)
+        if dt is None:
+            continue
+        status = e.get("_status")
+        if status in live_states or status in finished_states or dt <= now:
+            played.append((dt, e))
+        else:
+            upcoming.append((dt, e))
+
+    upcoming.sort(key=lambda pair: pair[0])
+    played.sort(key=lambda pair: pair[0], reverse=True)
+    return [e for _, e in upcoming[:1]], [e for _, e in played[:1]]
+
+
+def fetch_fixtures(league_cfg: dict, team_id: str) -> tuple[list[dict], list[dict]]:
+    """Returns (next_events, last_events), each a list of 0 or 1 event
+    dicts in the same shape xmltv_builder.TeamChannel.build_programmes
+    already expects - so xmltv_builder.py needs no changes at all."""
+    if league_cfg["provider"] == "sportsdb":
+        return sportsdb_client.get_next_events(team_id), sportsdb_client.get_last_events(team_id)
+
+    # espn: one call returns the whole schedule; split it ourselves
+    # using ESPN's status.type.state vocabulary ("pre"/"in"/"post").
+    events = espn_client.get_team_schedule(team_id, league_cfg["league_code"])
+    return _split_by_status(events, live_states=("in",), finished_states=("post",))
