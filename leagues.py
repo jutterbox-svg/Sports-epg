@@ -1,25 +1,29 @@
 """
 English football league definitions.
 
-The keys are the human-readable names used in the EPG (channel display
-names, filenames, logs). The values are the EXACT league name strings
-TheSportsDB's `search_all_teams.php?l=` endpoint expects. These were
-verified against thesportsdb.com league pages.
+Each league is tagged with which upstream API actually serves it:
+
+  - "football_data": football-data.org (dedicated 10 req/min free quota,
+    cleaner data). Its free tier only covers 12 competitions worldwide -
+    for England that's Premier League and Championship, nothing lower.
+  - "sportsdb": TheSportsDB (shared free key, more generous coverage
+    including lower English tiers, but heavily rate-limited since the
+    key is shared by everyone using the public "123" key).
 
 Tiers, top to bottom:
-  1. Premier League
-  2. Championship
-  3. League One
-  4. League Two
-  5. National League
+  1. Premier League      -> football-data.org (code "PL")
+  2. Championship         -> football-data.org (code "ELC")
+  3. League One           -> TheSportsDB ("English League 1")
+  4. League Two            -> TheSportsDB ("English League 2")
+  5. National League      -> TheSportsDB ("English National League")
 """
 
 LEAGUES = {
-    "Premier League": "English Premier League",
-    "Championship": "English League Championship",
-    "League One": "English League 1",
-    "League Two": "English League 2",
-    "National League": "English National League",
+    "Premier League": {"provider": "football_data", "code": "PL"},
+    "Championship": {"provider": "football_data", "code": "ELC"},
+    "League One": {"provider": "sportsdb", "name": "English League 1"},
+    "League Two": {"provider": "sportsdb", "name": "English League 2"},
+    "National League": {"provider": "sportsdb", "name": "English National League"},
 }
 
 # Order in which leagues appear in the combined EPG / logs.
