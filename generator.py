@@ -25,10 +25,10 @@ from datetime import datetime, timezone
 from xml.dom import minidom
 from xml.etree.ElementTree import Element, SubElement, tostring
 
-from config.leagues import LEAGUES, LEAGUE_ORDER
-from config.settings import OUTPUT_DIR, TEAMS_SUBDIR, XMLTV_SOURCE_INFO_NAME, XMLTV_GENERATOR_NAME
-from app.sportsdb_client import get_teams_in_league, get_next_events, get_last_events
-from app.xmltv_builder import TeamChannel
+from leagues import LEAGUES, LEAGUE_ORDER
+from settings import OUTPUT_DIR, TEAMS_SUBDIR, XMLTV_SOURCE_INFO_NAME, XMLTV_GENERATOR_NAME
+from sportsdb_client import get_teams_in_league, get_next_events, get_last_events
+from xmltv_builder import TeamChannel
 
 log = logging.getLogger("generator")
 
