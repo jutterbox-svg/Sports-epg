@@ -16,4 +16,4 @@ RUN mkdir -p /app/output
 # Railway injects $PORT at runtime; our app reads it via config/settings.py
 EXPOSE 8080
 
-CMD ["python", "-m", "app.server"]
+CMD ["python", "server.py"]
