@@ -14,16 +14,23 @@ Each team becomes one XMLTV "channel". It always has one or two
   - If there is no known next fixture at all: a single filler
     programme is emitted so the channel is never empty.
 """
-from __future__ import annotations
+from from __future__ import annotations
 
 import re
 from datetime import datetime, timedelta, timezone
 from xml.etree.ElementTree import Element, SubElement
+from zoneinfo import ZoneInfo
 
 from settings import MATCH_DURATION_MINUTES
 
 XMLTV_FMT = "%Y%m%d%H%M%S %z"
 
+# All internal datetime math is done in UTC (unambiguous for arithmetic
+# like "kickoff + duration"). Only at output time do we convert to UK
+# local time, which auto-switches between GMT (+0000, late Oct-late Mar)
+# and BST (+0100, late Mar-late Oct) - so kickoff times always display
+# correctly for UK viewers regardless of time of year.
+DISPLAY_TZ = ZoneInfo("Europe/London")
 
 def _slugify(name: str) -> str:
     slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
@@ -55,7 +62,7 @@ def _parse_event_datetime(event: dict) -> datetime | None:
 
 
 def _fmt(dt: datetime) -> str:
-    return dt.strftime(XMLTV_FMT)
+    return dt.astimezone(DISPLAY_TZ).strftime(XMLTV_FMT)
 
 
 def _fixture_title(event: dict) -> str:
@@ -126,7 +133,7 @@ class TeamChannel:
                 "start": now,
                 "stop": now_stop,
                 "title": f"Next up: {_fixture_title(next_event)}",
-                "desc": f"Kick-off {next_dt.strftime('%a %d %b, %H:%M UTC')}. {_fixture_desc(next_event)}",
+                "desc": f"Kick-off {next_dt.astimezone(DISPLAY_TZ).strftime('%a %d %b, %H:%M')} UK time. {_fixture_desc(next_event)}",
                 "category": "Football",
             })
             programmes.append({
