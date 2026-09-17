@@ -14,7 +14,7 @@ Each team becomes one XMLTV "channel". It always has one or two
   - If there is no known next fixture at all: a single filler
     programme is emitted so the channel is never empty.
 """
-from from __future__ import annotations
+from __future__ import annotations
 
 import re
 from datetime import datetime, timedelta, timezone
