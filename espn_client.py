@@ -9,7 +9,7 @@ API, so endpoints could change without notice - if it ever breaks,
 the fix is updating the parsing in this file, not switching providers
 again (though providers.py's abstraction makes that easy too).
 
-Endpoints used (base: https://site.api.espn.com/apis/site/v2/sports/soccer):
+Endpoints used (base: https://site.web.api.espn.com/apis/site/v2/sports/soccer):
   - /{league_code}/teams                   -> all teams in a league
   - /{league_code}/teams/{id}/schedule     -> that team's full schedule
 
