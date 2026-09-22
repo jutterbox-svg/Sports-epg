@@ -1,0 +1,37 @@
+{
+  "_comment": "Each entry becomes one XMLTV channel. Prefer 'league_id' (fastest + most reliable - go to thesportsdb.com, open the league's page, the ID is in the URL, e.g. .../league/4328-English-Premier-League). If you omit 'league_id', the script falls back to a slower name-based search using 'name' + 'sport', which only works if 'name' matches TheSportsDB's league name exactly. 'channel_id' is any unique string you choose - used by your IPTV player to match this channel.",
+
+  "channels": [
+    { "channel_id": "epl.sportsdb",        "name": "English Premier League", "sport": "Soccer",             "league_id": "4328" },
+    { "channel_id": "championship.sportsdb", "name": "English Championship", "sport": "Soccer",             "league_id": "4329" },
+    { "channel_id": "leagueone.sportsdb",  "name": "EFL League One",         "sport": "Soccer",             "league_id": "4396" },
+    { "channel_id": "leaguetwo.sportsdb",  "name": "EFL League Two",         "sport": "Soccer",             "league_id": "4397" }
+  ],
+
+  "settings": {
+    "api_key": "123",
+    "base_url": "https://www.thesportsdb.com/api/v1/json",
+    "default_event_duration_minutes": {
+      "Soccer": 120,
+      "Basketball": 150,
+      "American Football": 210,
+      "Ice Hockey": 150,
+      "Baseball": 210,
+      "Motorsport": 120,
+      "Fighting": 240,
+      "Rugby": 120,
+      "Cricket": 300,
+      "Tennis": 150,
+      "Golf": 300,
+      "_default": 180
+    },
+    "output_xml_name": "epg.xml",
+    "output_archive_name": "epg.tar.gz",
+    "output_teams_xml_name": "epg_teams.xml",
+    "output_teams_archive_name": "epg_teams.tar.gz",
+    "request_delay_seconds": 1.2,
+    "team_request_delay_seconds": 2.2,
+    "request_timeout_seconds": 15,
+    "max_retries": 3
+  }
+}

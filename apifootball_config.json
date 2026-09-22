@@ -1,0 +1,25 @@
+{
+  "_comment": "API-Football (api-sports.io / RapidAPI) config for TEAM-level schedules only. api_key: get one free at https://dashboard.api-football.com (direct) or via RapidAPI. auth_style: 'direct' uses x-apisports-key + v3.football.api-sports.io; 'rapidapi' uses x-rapidapi-key/host + api-football-v1.p.rapidapi.com - switch both auth_style and base_url together if you signed up via RapidAPI instead. league_id: null means 'look it up by name and cache it' - only Premier League and Championship IDs are confirmed, League One/Two resolve automatically on first run.",
+
+  "api_key": "YOUR_API_FOOTBALL_KEY_HERE",
+  "auth_style": "direct",
+  "base_url": "https://v3.football.api-sports.io",
+
+  "leagues": [
+    { "name": "Premier League", "league_id": 39 },
+    { "name": "Championship",   "league_id": 180 },
+    { "name": "League 1",       "league_id": null },
+    { "name": "League 2",       "league_id": null }
+  ],
+
+  "team_cache_days": 30,
+  "fixtures_per_team": 5,
+  "request_delay_seconds": 6.5,
+  "rate_limit_safety_margin": 3,
+
+  "output_xml_name": "epg_teams_apifootball.xml",
+  "output_archive_name": "epg_teams_apifootball.tar.gz",
+  "event_duration_minutes": 120,
+  "request_timeout_seconds": 15,
+  "max_retries": 3
+}
