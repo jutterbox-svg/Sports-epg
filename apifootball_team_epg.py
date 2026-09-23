@@ -189,6 +189,38 @@ def format_match_date(dt: datetime) -> str:
     return f"{dt.strftime('%a')} {dt.day} {dt.strftime('%b')}"
 
 
+# Status codes per API-Football's docs: https://www.api-football.com/documentation-v3#operation/get-fixtures
+FINISHED_STATUSES = {"FT", "AET", "PEN", "AWD", "WO"}
+LIVE_STATUSES = {"1H", "HT", "2H", "ET", "BT", "P", "SUSP", "INT", "LIVE"}
+
+
+def build_description(home_name, away_name, league_name, round_name, venue_name,
+                       state, home_score, away_score) -> str:
+    """A readable sentence about the match, plus round/venue where available."""
+    if not (home_name and away_name):
+        return ""
+
+    if state == "finished":
+        sentence = f"{home_name} {home_score}-{away_score} {away_name}."
+    elif state == "live":
+        sentence = f"{home_name} {home_score if home_score is not None else 0}-" \
+                    f"{away_score if away_score is not None else 0} {away_name}, in progress."
+    elif league_name:
+        sentence = f"{home_name} host {away_name} in the {league_name}."
+    else:
+        sentence = f"{home_name} host {away_name}."
+
+    extra = []
+    if round_name:
+        extra.append(round_name)
+    if venue_name:
+        extra.append(f"Venue: {venue_name}")
+
+    if extra:
+        return f"{sentence} " + " | ".join(extra)
+    return sentence
+
+
 def parse_fixture_start(fixture: dict) -> datetime | None:
     date_str = fixture.get("fixture", {}).get("date")
     if not date_str:
@@ -199,7 +231,10 @@ def parse_fixture_start(fixture: dict) -> datetime | None:
         return None
 
 
-def build_xmltv(teams: list, fixtures_by_team: dict, duration_minutes: int) -> Element:
+def build_xmltv(teams: list, fixtures_by_team: dict, duration_minutes: int, now=None) -> Element:
+    if now is None:
+        now = datetime.now(timezone.utc)
+
     tv = Element("tv", {
         "generator-info-name": "apifootball-team-epg",
         "generator-info-url": "https://www.api-football.com",
@@ -213,44 +248,96 @@ def build_xmltv(teams: list, fixtures_by_team: dict, duration_minutes: int) -> E
     for team in teams:
         team_id = team["team_id"]
         cid = team["channel_id"]
+
+        # First pass: parse every fixture into a normalized record with its
+        # TRUE kickoff time (used for sorting and the human-readable date -
+        # never altered for display purposes).
+        parsed = []
         for fixture in fixtures_by_team.get(str(team_id), []):
-            start = parse_fixture_start(fixture)
-            if start is None:
+            actual_start = parse_fixture_start(fixture)
+            if actual_start is None:
                 continue
-            stop = start + timedelta(minutes=duration_minutes)
+            actual_stop = actual_start + timedelta(minutes=duration_minutes)
 
             teams_info = fixture.get("teams", {})
             home = teams_info.get("home", {})
             away = teams_info.get("away", {})
             home_name = home.get("name")
             away_name = away.get("name")
+            goals = fixture.get("goals", {})
+            home_score = goals.get("home")
+            away_score = goals.get("away")
+            status_short = fixture.get("fixture", {}).get("status", {}).get("short")
+
+            if status_short in FINISHED_STATUSES:
+                state = "finished"
+            elif status_short in LIVE_STATUSES:
+                state = "live"
+            else:
+                state = "upcoming"
+
             if home_name and away_name:
                 is_home = (home.get("id") == team_id)
                 opponent = away_name if is_home else home_name
                 relation = f"Home to {opponent}" if is_home else f"Away at {opponent}"
-                date_str = format_match_date(start)
-                title = f"Upcoming: {relation}, {date_str}"
+
+                if state == "finished":
+                    title = f"FT: {home_name} {home_score}-{away_score} {away_name}"
+                elif state == "live":
+                    hs = home_score if home_score is not None else 0
+                    as_ = away_score if away_score is not None else 0
+                    title = f"LIVE: {home_name} {hs}-{as_} {away_name}"
+                else:
+                    date_str = format_match_date(actual_start)
+                    title = f"Upcoming: {relation}, {date_str}"
             else:
                 title = team["team_name"]
 
+            round_name = fixture.get("league", {}).get("round")
+            venue_name = fixture.get("fixture", {}).get("venue", {}).get("name")
+            desc_text = build_description(home_name, away_name, fixture.get("league", {}).get("name"),
+                                           round_name, venue_name, state, home_score, away_score)
+
+            parsed.append({
+                "actual_start": actual_start, "actual_stop": actual_stop,
+                "title": title, "desc": desc_text,
+            })
+
+        if not parsed:
+            continue
+        parsed.sort(key=lambda p: p["actual_start"])
+
+        # Second pass: lay out display start/stop times so the channel's
+        # timeline has no gaps - the earliest entry always covers "now"
+        # even if its real kickoff is days away, consecutive entries chain
+        # directly onto each other, and the last entry stretches well into
+        # the future so the grid never goes empty before the next refresh.
+        far_future = now + timedelta(days=45)
+        n = len(parsed)
+        for i, item in enumerate(parsed):
+            if i == 0:
+                display_start = min(now, item["actual_start"])
+            else:
+                display_start = parsed[i - 1]["_display_stop"]
+            if i == n - 1:
+                display_stop = max(item["actual_stop"], far_future)
+            else:
+                display_stop = max(item["actual_stop"], parsed[i + 1]["actual_start"])
+            item["_display_start"] = display_start
+            item["_display_stop"] = display_stop
+
+        for item in parsed:
             prog = SubElement(tv, "programme", {
-                "start": xmltv_time(start),
-                "stop": xmltv_time(stop),
+                "start": xmltv_time(item["_display_start"]),
+                "stop": xmltv_time(item["_display_stop"]),
                 "channel": cid,
             })
             t_el = SubElement(prog, "title")
-            t_el.text = title
+            t_el.text = item["title"]
 
-            desc_bits = []
-            league_name = fixture.get("league", {}).get("name")
-            if league_name:
-                desc_bits.append(league_name)
-            venue_name = fixture.get("fixture", {}).get("venue", {}).get("name")
-            if venue_name:
-                desc_bits.append(f"Venue: {venue_name}")
-            if desc_bits:
+            if item["desc"]:
                 d_el = SubElement(prog, "desc")
-                d_el.text = " | ".join(desc_bits)
+                d_el.text = item["desc"]
 
             cat_el = SubElement(prog, "category")
             cat_el.text = "Sports"
@@ -392,6 +479,102 @@ def generate(config_path: str = "apifootball_config.json", out_dir: str = ".") -
 
     package_tar_gz(xml_path, archive_path)
     LOG.info("Packaged archive at %s", archive_path)
+    return archive_path
+
+
+def matchday_refresh(config_path: str = "apifootball_config.json", out_dir: str = ".",
+                      window_hours: float = 4.0, grace_hours: float = 3.0) -> Path | None:
+    """
+    Cheap partial refresh for use on a short interval between full generate()
+    runs - mirrors team_epg_generator.py's matchday_refresh(). Only re-fetches
+    teams whose cached fixture is currently 'interesting' (starting soon,
+    live, or recently finished), so frequent polling doesn't burn through
+    the 100/day quota the way re-running generate() in full would.
+
+    Requires generate() to have run at least once already (needs its cache).
+    Returns None (and logs, without touching existing files) if there's no
+    cache yet, or nothing is currently in the matchday window.
+    """
+    config_path = Path(config_path)
+    if not config_path.exists():
+        raise FileNotFoundError(f"Config file not found: {config_path}")
+    cfg = json.loads(config_path.read_text())
+
+    api_key = cfg["api_key"]
+    if not api_key or api_key == "YOUR_API_FOOTBALL_KEY_HERE":
+        raise ValueError("Set a real api_key in apifootball_config.json first.")
+
+    base_url = cfg["base_url"]
+    headers = build_headers(api_key, cfg.get("auth_style", "direct"))
+    timeout = cfg.get("request_timeout_seconds", 15)
+    max_retries = cfg.get("max_retries", 3)
+    delay = cfg.get("request_delay_seconds", 6.5)
+    safety_margin = cfg.get("rate_limit_safety_margin", 3)
+    fixtures_per_team = cfg.get("fixtures_per_team", 5)
+    duration_minutes = cfg.get("event_duration_minutes", 120)
+
+    out_dir = Path(out_dir)
+    cache_path = out_dir / "apifootball_cache.json"
+    if not cache_path.exists():
+        LOG.warning("No apifootball_cache.json yet - run generate() at least once first.")
+        return None
+    cache = load_cache(cache_path)
+
+    all_teams = []
+    seen_ids = set()
+    for lid, entry in cache.get("teams_by_league", {}).items():
+        for t in entry["teams"]:
+            if t["team_id"] in seen_ids:
+                continue
+            seen_ids.add(t["team_id"])
+            all_teams.append({
+                "team_id": t["team_id"], "team_name": t["team_name"],
+                "channel_id": slugify(t["team_id"], t["team_name"]),
+            })
+
+    fixtures_by_team = {tid: entry["events"] for tid, entry in cache.get("fixtures_by_team", {}).items()}
+
+    now = datetime.now(timezone.utc)
+    window_end = now + timedelta(hours=window_hours)
+    window_start = now - timedelta(hours=grace_hours)
+
+    teams_to_refresh = []
+    for team in all_teams:
+        for fixture in fixtures_by_team.get(str(team["team_id"]), []):
+            start = parse_fixture_start(fixture)
+            if start and window_start <= start <= window_end:
+                teams_to_refresh.append(team)
+                break
+
+    if not teams_to_refresh:
+        LOG.info("Matchday refresh: nothing in the +%.1fh/-%.1fh window right now - skipping.",
+                  window_hours, grace_hours)
+        return None
+
+    LOG.info("Matchday refresh: %d team(s) in the current window, re-fetching...",
+              len(teams_to_refresh))
+
+    for team in teams_to_refresh:
+        try:
+            fixtures = fetch_team_fixtures(team["team_id"], fixtures_per_team, base_url, headers,
+                                            timeout, max_retries, delay, safety_margin)
+            fixtures_by_team[str(team["team_id"])] = fixtures
+            cache.setdefault("fixtures_by_team", {})[str(team["team_id"])] = {
+                "updated_at": now.isoformat(), "events": fixtures,
+            }
+        except QuotaExhausted:
+            LOG.warning("Quota exhausted during matchday refresh - stopping early.")
+            break
+        time.sleep(delay)
+
+    save_cache(cache_path, cache)
+
+    xml_path = out_dir / cfg.get("output_xml_name", "epg_teams_apifootball.xml")
+    archive_path = out_dir / cfg.get("output_archive_name", "epg_teams_apifootball.tar.gz")
+    tv_root = build_xmltv(all_teams, fixtures_by_team, duration_minutes, now=now)
+    write_pretty_xml(tv_root, xml_path)
+    package_tar_gz(xml_path, archive_path)
+    LOG.info("Matchday refresh complete - rewrote %s", archive_path)
     return archive_path
 
 
